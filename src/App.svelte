@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
 
   let currentUser = null
   let token = ''
@@ -9,6 +9,10 @@
   let loading = false
   let installations = []
   let selectedId = ''
+  let plcSamples = []
+  let plcStats = null
+  let plcLoading = false
+  let refreshTimer
 
   $: selectedInstallation = installations.find((installation) => installation.id === selectedId)
     ?? installations[0]
@@ -22,6 +26,13 @@
           installations.length
       )
     : 0
+  $: latestPlcSample = plcSamples[plcSamples.length - 1]
+  $: plcTags = latestPlcSample ? Object.keys(latestPlcSample.values) : []
+  $: levelTags = plcTags.filter((tag) => tag.startsWith('nivel_') && tag !== 'nivel_ph')
+  $: booleanTags = plcTags.filter((tag) => typeof latestPlcSample?.values[tag] === 'boolean')
+  $: if (currentUser && selectedId) {
+    loadPlcHistory(selectedId)
+  }
 
   onMount(async () => {
     const storedToken = localStorage.getItem('gtm_token')
@@ -32,6 +43,10 @@
     token = storedToken
     currentUser = JSON.parse(storedUser)
     await loadInstallations()
+  })
+
+  onDestroy(() => {
+    clearInterval(refreshTimer)
   })
 
   async function apiFetch(path, options = {}) {
@@ -56,12 +71,38 @@
       const data = await apiFetch('/api/installations')
       installations = data.installations
       selectedId = data.installations[0]?.id ?? ''
+      startAutoRefresh()
     } catch (error) {
       const message = error.message
       handleLogout()
       loginError = message
     } finally {
       loading = false
+    }
+  }
+
+  function startAutoRefresh() {
+    clearInterval(refreshTimer)
+    refreshTimer = setInterval(() => {
+      if (currentUser && selectedId) loadPlcHistory(selectedId, true)
+    }, 10000)
+  }
+
+  async function loadPlcHistory(installationId, silent = false) {
+    if (!installationId) return
+
+    if (!silent) plcLoading = true
+
+    try {
+      const data = await apiFetch(`/api/installations/${installationId}/measurements?limit=240`)
+      plcSamples = data.samples
+      plcStats = data.stats
+    } catch (error) {
+      if (!silent) console.error(error)
+      plcSamples = []
+      plcStats = null
+    } finally {
+      if (!silent) plcLoading = false
     }
   }
 
@@ -93,8 +134,35 @@
     password = ''
     installations = []
     selectedId = ''
+    plcSamples = []
+    plcStats = null
+    clearInterval(refreshTimer)
     localStorage.removeItem('gtm_token')
     localStorage.removeItem('gtm_user')
+  }
+
+  function formatSampleTime(timestamp) {
+    return new Date(timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function formatTagValue(value) {
+    if (typeof value === 'boolean') return value ? 'Activo' : 'Parado'
+    if (typeof value === 'number') return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)))
+    return String(value)
+  }
+
+  function buildChartPath(tag, min, max) {
+    const numericSamples = plcSamples.filter((sample) => Number.isFinite(sample.values[tag]))
+    if (numericSamples.length === 0) return ''
+
+    return numericSamples
+      .map((sample, index) => {
+        const x = numericSamples.length === 1 ? 100 : (index / (numericSamples.length - 1)) * 100
+        const clamped = Math.max(min, Math.min(max, sample.values[tag]))
+        const y = 100 - ((clamped - min) / (max - min)) * 100
+        return `${x.toFixed(2)},${y.toFixed(2)}`
+      })
+      .join(' ')
   }
 </script>
 
@@ -307,6 +375,103 @@
             </div>
           </section>
         </div>
+
+        <section class="plc-dashboard panel">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">Historico PLC</span>
+              <h2>Vista tipo Raspberry</h2>
+            </div>
+            <span class="phase">{plcLoading ? 'Actualizando' : `${plcSamples.length} muestras`}</span>
+          </div>
+
+          {#if plcSamples.length > 0}
+            <div class="plc-grid">
+              <article class="plc-chart-card levels-card">
+                <div class="plc-card-heading">
+                  <strong>Niveles</strong>
+                  <span>{formatSampleTime(plcSamples[0].timestamp)} - {formatSampleTime(latestPlcSample.timestamp)}</span>
+                </div>
+
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de niveles PLC">
+                  <line x1="0" y1="25" x2="100" y2="25" />
+                  <line x1="0" y1="50" x2="100" y2="50" />
+                  <line x1="0" y1="75" x2="100" y2="75" />
+                  {#each levelTags as tag, index}
+                    <polyline class="series series-{index}" points={buildChartPath(tag, 0, 100)} />
+                  {/each}
+                </svg>
+
+                <div class="chart-legend">
+                  {#each levelTags as tag, index}
+                    <span class="legend-item legend-{index}">{tag}</span>
+                  {/each}
+                </div>
+              </article>
+
+              <article class="plc-live-card">
+                <div class="plc-card-heading">
+                  <strong>Ultima lectura</strong>
+                  <span>{new Date(latestPlcSample.timestamp).toLocaleString('es-ES')}</span>
+                </div>
+
+                <div class="counter-card compact-counter">
+                  <span>Reactores hoy</span>
+                  <strong>{plcStats?.reactorFills ?? 0}</strong>
+                  <p>{plcStats?.date ?? 'Sin fecha'}</p>
+                </div>
+
+                <div class="plc-values">
+                  {#each plcTags as tag}
+                    <div>
+                      <span>{tag}</span>
+                      <strong>{formatTagValue(latestPlcSample.values[tag])}</strong>
+                    </div>
+                  {/each}
+                </div>
+              </article>
+
+              {#if plcTags.includes('nivel_ph')}
+                <article class="plc-chart-card ph-card">
+                  <div class="plc-card-heading">
+                    <strong>pH</strong>
+                    <span>{plcSamples.length} muestras</span>
+                  </div>
+
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de pH PLC">
+                    <line x1="0" y1="25" x2="100" y2="25" />
+                    <line x1="0" y1="50" x2="100" y2="50" />
+                    <line x1="0" y1="75" x2="100" y2="75" />
+                    <polyline class="series ph-series" points={buildChartPath('nivel_ph', 0, 14)} />
+                  </svg>
+                </article>
+              {/if}
+
+              {#if booleanTags.length > 0}
+                <article class="plc-live-card pump-card">
+                  <div class="plc-card-heading">
+                    <strong>Bombas</strong>
+                    <span>Estados digitales</span>
+                  </div>
+
+                  <div class="pump-list">
+                    {#each booleanTags as tag}
+                      <div class:active={latestPlcSample.values[tag]}>
+                        <span>{tag}</span>
+                        <strong>{formatTagValue(latestPlcSample.values[tag])}</strong>
+                      </div>
+                    {/each}
+                  </div>
+                </article>
+              {/if}
+            </div>
+          {:else}
+            <div class="empty-state plc-empty">
+              <span class="eyebrow">Sin historico PLC</span>
+              <h2>Aun no hay muestras recibidas de la Raspberry para esta instalacion</h2>
+            </div>
+          {/if}
+        </section>
       {:else}
         <section class="panel empty-state">
           <span class="eyebrow">Sin instalaciones</span>

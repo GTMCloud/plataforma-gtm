@@ -270,6 +270,27 @@ function formatMeasurementValue(value) {
   return String(value)
 }
 
+function countReactorFills(samples) {
+  let armed = false
+  let count = 0
+
+  for (const sample of samples) {
+    const value = sample.values?.nivel_reactor
+
+    if (!Number.isFinite(value)) continue
+
+
+    if (value < 25) armed = true
+
+    if (armed && value > 70) {
+      count += 1
+      armed = false
+    }
+  }
+
+  return count
+}
+
 function getSession(req) {
   const header = req.headers.authorization ?? ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : null
@@ -413,6 +434,71 @@ app.get('/api/installations', requireAuth, async (req, res, next) => {
     )
 
     res.json({ installations: result.rows.map(serializeInstallation) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/installations/:slug/measurements', requireAuth, async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 240), 1), 2000)
+    const params = [req.params.slug]
+    let accessWhere = ''
+
+    if (req.user.role !== 'gtm') {
+      params.push(req.user.clientId)
+      accessWhere = 'and installations.client_id = $2'
+    }
+
+    const installationResult = await query(
+      `select installations.id, installations.slug
+       from installations
+       where installations.slug = $1 ${accessWhere}`,
+      params
+    )
+
+    const installation = installationResult.rows[0]
+    if (!installation) {
+      res.status(404).json({ error: 'Instalacion no encontrada' })
+      return
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const [samplesResult, todayResult] = await Promise.all([
+      query(
+        `select timestamp, values
+         from measurements
+         where installation_id = $1
+         order by timestamp desc
+         limit $2`,
+        [installation.id, limit]
+      ),
+      query(
+        `select timestamp, values
+         from measurements
+         where installation_id = $1 and timestamp >= $2
+         order by timestamp asc`,
+        [installation.id, today.toISOString()]
+      )
+    ])
+
+    const samples = samplesResult.rows
+      .reverse()
+      .map((row) => ({ timestamp: row.timestamp.toISOString(), values: row.values }))
+    const todaySamples = todayResult.rows.map((row) => ({
+      timestamp: row.timestamp.toISOString(),
+      values: row.values
+    }))
+
+    res.json({
+      samples,
+      stats: {
+        date: today.toISOString().slice(0, 10),
+        reactorFills: countReactorFills(todaySamples)
+      }
+    })
   } catch (error) {
     next(error)
   }

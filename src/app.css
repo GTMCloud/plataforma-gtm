@@ -566,6 +566,171 @@ dd {
   background: #dff4ce;
 }
 
+.plc-dashboard {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(56, 189, 248, 0.16), transparent 32%),
+    linear-gradient(135deg, #0b1120, #17211d);
+}
+
+.plc-dashboard h2,
+.plc-dashboard .eyebrow {
+  color: #f6f2e8;
+}
+
+.plc-dashboard .phase {
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.2);
+}
+
+.plc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+}
+
+.plc-chart-card,
+.plc-live-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 22px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.plc-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+  color: #e5eefb;
+}
+
+.plc-card-heading span {
+  color: #7dd3fc;
+  font-size: 0.82rem;
+}
+
+.plc-chart-card svg {
+  width: 100%;
+  height: 260px;
+  overflow: visible;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.64));
+}
+
+.plc-chart-card line {
+  stroke: rgba(148, 163, 184, 0.18);
+  stroke-width: 0.4;
+}
+
+.series {
+  fill: none;
+  stroke-width: 1.7;
+  vector-effect: non-scaling-stroke;
+}
+
+.series-0,
+.legend-0::before {
+  stroke: #38bdf8;
+  background: #38bdf8;
+}
+
+.series-1,
+.legend-1::before {
+  stroke: #22c55e;
+  background: #22c55e;
+}
+
+.series-2,
+.legend-2::before {
+  stroke: #f97316;
+  background: #f97316;
+}
+
+.series-3,
+.legend-3::before {
+  stroke: #a78bfa;
+  background: #a78bfa;
+}
+
+.ph-series {
+  stroke: #f472b6;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+}
+
+.legend-item::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.plc-values,
+.pump-list {
+  display: grid;
+  gap: 10px;
+}
+
+.plc-values div,
+.pump-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 16px;
+  color: #dbeafe;
+  background: rgba(30, 41, 59, 0.74);
+}
+
+.plc-values span,
+.pump-list span {
+  color: #94a3b8;
+  font-size: 0.86rem;
+}
+
+.plc-values strong,
+.pump-list strong {
+  color: #f8fafc;
+}
+
+.compact-counter {
+  margin-bottom: 12px;
+}
+
+.pump-list div.active {
+  border: 1px solid rgba(34, 197, 94, 0.38);
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.ph-card {
+  grid-column: 1;
+}
+
+.pump-card {
+  grid-column: 2;
+}
+
+.plc-empty h2 {
+  color: #f6f2e8;
+}
+
 @media (max-width: 1060px) {
   .login-panel {
     grid-template-columns: 1fr;
@@ -596,6 +761,15 @@ dd {
   .overview-grid,
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ph-card,
+  .pump-card {
+    grid-column: auto;
   }
 }
 
