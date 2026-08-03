@@ -54,6 +54,7 @@ Configura contrasenas reales en `.env`:
 POSTGRES_PASSWORD=una-contrasena-larga
 GTM_ADMIN_PASSWORD=otra-contrasena-larga
 LOZANO_USER_PASSWORD=otra-contrasena-larga
+LOZANO_AGENT_TOKEN=token-largo-para-la-raspberry
 ```
 
 Arranca la plataforma:
@@ -90,3 +91,24 @@ docker compose up -d --build
 - `api`: backend Node/Express para login, permisos e instalaciones.
 - `db`: PostgreSQL con clientes, usuarios e instalaciones.
 - `caddy`: proxy publico y HTTPS automatico con dominio.
+
+## Ingesta de Agentes
+
+Las Raspberry envian muestras a:
+
+```text
+POST /api/agent/measurements
+Authorization: Bearer <LOZANO_AGENT_TOKEN>
+```
+
+Payload esperado:
+
+```json
+{
+  "timestamp": "2026-08-03T11:10:00Z",
+  "values": {
+    "nivel_reactor": 81.094,
+    "bomba_lechada": false
+  }
+}
+```

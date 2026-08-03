@@ -86,6 +86,31 @@ async function migrate() {
       created_at timestamptz not null default now()
     )
   `)
+
+  await query(`
+    create table if not exists agent_tokens (
+      id uuid primary key default gen_random_uuid(),
+      installation_id uuid not null references installations(id),
+      name text not null,
+      token_hash text unique not null,
+      created_at timestamptz not null default now()
+    )
+  `)
+
+  await query(`
+    create table if not exists measurements (
+      id bigserial primary key,
+      installation_id uuid not null references installations(id),
+      source text not null default 'agent',
+      timestamp timestamptz not null,
+      values jsonb not null,
+      created_at timestamptz not null default now()
+    )
+  `)
+
+  await query(
+    'create index if not exists measurements_installation_timestamp_idx on measurements (installation_id, timestamp desc)'
+  )
 }
 
 async function upsertClient(key, name) {
@@ -112,7 +137,7 @@ async function upsertUser({ clientId, name, email, password, role }) {
 }
 
 async function upsertInstallation(clientId) {
-  await query(
+  const result = await query(
     `insert into installations (
       client_id, slug, name, location, status, health, last_update, phase,
       manager, type, start_date, metrics, sensors, incidents, documents
@@ -131,7 +156,8 @@ async function upsertInstallation(clientId) {
       metrics = excluded.metrics,
       sensors = excluded.sensors,
       incidents = excluded.incidents,
-      documents = excluded.documents`,
+      documents = excluded.documents
+    returning id`,
     [
       clientId,
       'productos-lozano-central',
@@ -162,6 +188,23 @@ async function upsertInstallation(clientId) {
       JSON.stringify(['Ficha cliente Productos Lozano.pdf', 'Esquema conexion agente.pdf'])
     ]
   )
+
+  return result.rows[0].id
+}
+
+function hashAgentToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex')
+}
+
+async function upsertAgentToken({ installationId, name, token }) {
+  await query(
+    `insert into agent_tokens (installation_id, name, token_hash)
+     values ($1, $2, $3)
+     on conflict (token_hash) do update set
+       installation_id = excluded.installation_id,
+       name = excluded.name`,
+    [installationId, name, hashAgentToken(token)]
+  )
 }
 
 async function seed() {
@@ -184,10 +227,24 @@ async function seed() {
     role: 'client'
   })
 
-  await upsertInstallation(lozanoClientId)
+  const installationId = await upsertInstallation(lozanoClientId)
+
+  await upsertAgentToken({
+    installationId,
+    name: 'Raspberry Productos Lozano',
+    token: process.env.LOZANO_AGENT_TOKEN ?? 'lozano-agent-token-dev'
+  })
 }
 
 function serializeInstallation(row) {
+  const liveSensors = row.latest_values
+    ? Object.entries(row.latest_values).map(([label, value]) => ({
+        label,
+        value: formatMeasurementValue(value),
+        state: 'Normal'
+      }))
+    : row.sensors
+
   return {
     id: row.slug,
     name: row.name,
@@ -195,16 +252,22 @@ function serializeInstallation(row) {
     location: row.location,
     status: row.status,
     health: row.health,
-    lastUpdate: row.last_update,
+    lastUpdate: row.latest_timestamp ? new Date(row.latest_timestamp).toLocaleString('es-ES') : row.last_update,
     phase: row.phase,
     manager: row.manager,
     type: row.type,
     startDate: row.start_date,
     metrics: row.metrics,
-    sensors: row.sensors,
+    sensors: liveSensors,
     incidents: row.incidents,
     documents: row.documents
   }
+}
+
+function formatMeasurementValue(value) {
+  if (typeof value === 'boolean') return value ? 'Activo' : 'Parado'
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)))
+  return String(value)
 }
 
 function getSession(req) {
@@ -223,8 +286,66 @@ function requireAuth(req, res, next) {
   next()
 }
 
+async function requireAgent(req, res, next) {
+  try {
+    const header = req.headers.authorization ?? ''
+    const token = header.startsWith('Bearer ') ? header.slice(7) : req.headers['x-agent-token']
+
+    if (!token) {
+      res.status(401).json({ error: 'Token de agente requerido' })
+      return
+    }
+
+    const result = await query(
+      `select agent_tokens.installation_id, installations.slug
+       from agent_tokens
+       join installations on installations.id = agent_tokens.installation_id
+       where agent_tokens.token_hash = $1`,
+      [hashAgentToken(String(token))]
+    )
+
+    const agent = result.rows[0]
+    if (!agent) {
+      res.status(401).json({ error: 'Token de agente invalido' })
+      return
+    }
+
+    req.agent = agent
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
+})
+
+app.post('/api/agent/measurements', requireAgent, async (req, res, next) => {
+  try {
+    const timestamp = req.body.timestamp ? new Date(req.body.timestamp) : new Date()
+    const values = req.body.values
+
+    if (Number.isNaN(timestamp.getTime()) || !values || typeof values !== 'object' || Array.isArray(values)) {
+      res.status(400).json({ error: 'Muestra invalida' })
+      return
+    }
+
+    await query(
+      `insert into measurements (installation_id, source, timestamp, values)
+       values ($1, $2, $3, $4)`,
+      [req.agent.installation_id, 'raspberry', timestamp.toISOString(), JSON.stringify(values)]
+    )
+
+    await query('update installations set last_update = $1 where id = $2', [
+      timestamp.toISOString(),
+      req.agent.installation_id
+    ])
+
+    res.status(201).json({ ok: true, installation: req.agent.slug })
+  } catch (error) {
+    next(error)
+  }
 })
 
 app.post('/api/login', async (req, res, next) => {
@@ -274,9 +395,18 @@ app.get('/api/installations', requireAuth, async (req, res, next) => {
     }
 
     const result = await query(
-      `select installations.*, clients.name as client_name
+      `select installations.*, clients.name as client_name,
+         latest.values as latest_values,
+         latest.timestamp as latest_timestamp
        from installations
        join clients on clients.id = installations.client_id
+       left join lateral (
+         select measurements.values, measurements.timestamp
+         from measurements
+         where measurements.installation_id = installations.id
+         order by measurements.timestamp desc
+         limit 1
+       ) latest on true
        ${where}
        order by installations.created_at asc`,
       params
