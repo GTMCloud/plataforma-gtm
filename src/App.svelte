@@ -403,14 +403,6 @@
             <strong>{selectedInstallation.client}</strong>
           </article>
           <article>
-            <span>Ubicacion</span>
-            <strong>{selectedInstallation.location}</strong>
-          </article>
-          <article>
-            <span>Responsable GTM</span>
-            <strong>{selectedInstallation.manager}</strong>
-          </article>
-          <article>
             <span>Ultima actualizacion</span>
             <strong>{selectedInstallation.lastUpdate}</strong>
           </article>
