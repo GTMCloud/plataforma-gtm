@@ -23,6 +23,14 @@
       password: 'cliente2026',
       role: 'client',
       clientKey: 'costa-viva'
+    },
+    {
+      id: 'user-marima',
+      name: 'Marima',
+      email: 'cliente@marima.es',
+      password: 'cliente2026',
+      role: 'client',
+      clientKey: 'marima'
     }
   ]
 
@@ -116,6 +124,36 @@
         'Falta validar lectura de contador fiscal.'
       ],
       documents: ['Planning instalacion.pdf', 'Certificados paneles.zip', 'Esquema comunicaciones.pdf']
+    },
+    {
+      id: 'marima-central',
+      clientKey: 'marima',
+      name: 'Marima Central',
+      client: 'Marima',
+      location: 'Castellon',
+      status: 'Operativa',
+      health: 91,
+      lastUpdate: 'Hoy, 10:18',
+      phase: 'Seguimiento',
+      manager: 'Equipo GTM',
+      type: 'Monitorizacion energetica',
+      startDate: '03 Ago 2026',
+      metrics: [
+        { label: 'Consumo actual', value: '26.4 kW', trend: '-3% vs semana pasada' },
+        { label: 'Disponibilidad', value: '98.8%', trend: 'Dentro de SLA' },
+        { label: 'Alertas abiertas', value: '1', trend: 'Sin criticas' },
+        { label: 'Equipos monitorizados', value: '12', trend: '100% conectados' }
+      ],
+      sensors: [
+        { label: 'Raspberry agente', value: 'Online', state: 'Normal' },
+        { label: 'Contador general', value: '26.4 kW', state: 'Normal' },
+        { label: 'Cuadro produccion', value: '404 V', state: 'Normal' }
+      ],
+      incidents: [
+        'Agente local operativo y enviando datos de prueba.',
+        'Pendiente asociar mediciones reales de la instalacion.'
+      ],
+      documents: ['Ficha cliente Marima.pdf', 'Esquema conexion agente.pdf']
     }
   ]
 
@@ -209,6 +247,7 @@
           <strong>Usuarios demo</strong>
           <span>GTM: gtm@gtm.es / gtm2026</span>
           <span>Cliente: cliente@alboran.es / cliente2026</span>
+          <span>Marima: cliente@marima.es / cliente2026</span>
         </div>
       </form>
     </section>
