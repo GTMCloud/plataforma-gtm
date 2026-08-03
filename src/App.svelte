@@ -1,7 +1,35 @@
 <script>
+  const users = [
+    {
+      id: 'user-gtm',
+      name: 'Equipo GTM',
+      email: 'gtm@gtm.es',
+      password: 'gtm2026',
+      role: 'gtm',
+      clientKey: null
+    },
+    {
+      id: 'user-alboran',
+      name: 'Promotora Alboran',
+      email: 'cliente@alboran.es',
+      password: 'cliente2026',
+      role: 'client',
+      clientKey: 'alboran'
+    },
+    {
+      id: 'user-costa',
+      name: 'Grupo Costa Viva',
+      email: 'cliente@costaviva.es',
+      password: 'cliente2026',
+      role: 'client',
+      clientKey: 'costa-viva'
+    }
+  ]
+
   const installations = [
     {
       id: 'obra-norte',
+      clientKey: 'alboran',
       name: 'Residencial Norte',
       client: 'Promotora Alboran',
       location: 'Valencia',
@@ -31,6 +59,7 @@
     },
     {
       id: 'hotel-mar',
+      clientKey: 'costa-viva',
       name: 'Hotel Mar Azul',
       client: 'Grupo Costa Viva',
       location: 'Alicante',
@@ -60,6 +89,7 @@
     },
     {
       id: 'logistica-sur',
+      clientKey: 'nexo',
       name: 'Plataforma Logistica Sur',
       client: 'Nexo Distribucion',
       location: 'Murcia',
@@ -89,18 +119,101 @@
     }
   ]
 
+  let currentUser = null
+  let email = 'gtm@gtm.es'
+  let password = 'gtm2026'
+  let loginError = ''
   let selectedId = installations[0].id
 
-  $: selectedInstallation = installations.find((installation) => installation.id === selectedId)
-  $: totalAlerts = installations.reduce(
+  $: accessibleInstallations = currentUser?.role === 'gtm'
+    ? installations
+    : installations.filter((installation) => installation.clientKey === currentUser?.clientKey)
+  $: if (
+    currentUser &&
+    accessibleInstallations.length > 0 &&
+    !accessibleInstallations.some((installation) => installation.id === selectedId)
+  ) {
+    selectedId = accessibleInstallations[0].id
+  }
+  $: selectedInstallation = accessibleInstallations.find((installation) => installation.id === selectedId)
+    ?? accessibleInstallations[0]
+  $: totalAlerts = accessibleInstallations.reduce(
     (total, installation) => total + Number(installation.metrics[2].value),
     0
   )
-  $: averageHealth = Math.round(
-    installations.reduce((total, installation) => total + installation.health, 0) / installations.length
-  )
+  $: averageHealth = accessibleInstallations.length
+    ? Math.round(
+        accessibleInstallations.reduce((total, installation) => total + installation.health, 0) /
+          accessibleInstallations.length
+      )
+    : 0
+
+  function handleLogin() {
+    const normalizedEmail = email.trim().toLowerCase()
+    const user = users.find(
+      (candidate) => candidate.email === normalizedEmail && candidate.password === password
+    )
+
+    if (!user) {
+      loginError = 'Email o contrasena incorrectos.'
+      return
+    }
+
+    currentUser = user
+    loginError = ''
+  }
+
+  function handleLogout() {
+    currentUser = null
+    password = ''
+    loginError = ''
+    selectedId = installations[0].id
+  }
 </script>
 
+{#if !currentUser}
+  <main class="login-shell">
+    <section class="login-panel">
+      <div class="login-copy">
+        <span class="brand-mark">GTM</span>
+        <span class="eyebrow">Acceso privado</span>
+        <h1>Plataforma de instalaciones GTM</h1>
+        <p>
+          Accede al panel para consultar obras, sensores, incidencias y documentos segun tu perfil.
+        </p>
+      </div>
+
+      <form class="login-card" on:submit|preventDefault={handleLogin}>
+        <div>
+          <span class="eyebrow">Login</span>
+          <h2>Entrar al panel</h2>
+        </div>
+
+        <label>
+          Email
+          <input bind:value={email} type="email" autocomplete="email" required />
+        </label>
+
+        <label>
+          Contrasena
+          <input bind:value={password} type="password" autocomplete="current-password" required />
+        </label>
+
+        {#if loginError}
+          <p class="login-error">{loginError}</p>
+        {/if}
+
+        <button type="submit">Entrar</button>
+
+        <div class="demo-users">
+          <strong>Usuarios demo</strong>
+          <span>GTM: gtm@gtm.es / gtm2026</span>
+          <span>Cliente: cliente@alboran.es / cliente2026</span>
+        </div>
+      </form>
+    </section>
+  </main>
+{:else}
 <main class="shell">
   <aside class="sidebar" aria-label="Instalaciones">
     <div class="brand">
@@ -112,12 +225,18 @@
     </div>
 
     <div class="sidebar-summary">
-      <span>{installations.length} obras activas</span>
+      <span>{accessibleInstallations.length} obras visibles</span>
       <strong>{averageHealth}% salud media</strong>
     </div>
 
+    <div class="user-card">
+      <span>{currentUser.role === 'gtm' ? 'Usuario GTM' : 'Cliente'}</span>
+      <strong>{currentUser.name}</strong>
+      <button type="button" on:click={handleLogout}>Cerrar sesion</button>
+    </div>
+
     <nav class="installation-list">
-      {#each installations as installation}
+      {#each accessibleInstallations as installation}
         <button
           class:active={installation.id === selectedId}
           type="button"
@@ -257,3 +376,4 @@
     </div>
   </section>
 </main>
+{/if}

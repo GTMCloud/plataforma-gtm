@@ -28,8 +28,131 @@ button {
   border: 0;
 }
 
+input {
+  font: inherit;
+}
+
 #app {
   min-height: 100vh;
+}
+
+.login-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 20% 18%, rgba(201, 255, 122, 0.5), transparent 28%),
+    radial-gradient(circle at 82% 70%, rgba(46, 76, 52, 0.18), transparent 30%),
+    #eef2ea;
+}
+
+.login-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  width: min(1080px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(23, 33, 29, 0.08);
+  border-radius: 38px;
+  box-shadow: 0 34px 90px rgba(42, 61, 49, 0.14);
+}
+
+.login-copy {
+  display: grid;
+  align-content: end;
+  min-height: 620px;
+  padding: 42px;
+  color: #f6f2e8;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(201, 255, 122, 0.32), transparent 26%),
+    linear-gradient(160deg, #101814 0%, #1d3128 54%, #2e4c34 100%);
+}
+
+.login-copy .brand-mark {
+  margin-bottom: auto;
+}
+
+.login-copy .eyebrow {
+  color: #c9ff7a;
+}
+
+.login-copy h1 {
+  color: #f6f2e8;
+}
+
+.login-copy p {
+  max-width: 620px;
+  margin-top: 20px;
+  color: rgba(246, 242, 232, 0.72);
+  font-size: 1.08rem;
+}
+
+.login-card {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 42px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.login-card label {
+  display: grid;
+  gap: 8px;
+  color: #44544a;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 14px 16px;
+  color: #17211d;
+  border: 1px solid rgba(23, 33, 29, 0.14);
+  border-radius: 16px;
+  background: #f8faf5;
+  outline: none;
+}
+
+.login-card input:focus {
+  border-color: #5d745d;
+  box-shadow: 0 0 0 4px rgba(201, 255, 122, 0.38);
+}
+
+.login-card button,
+.user-card button {
+  cursor: pointer;
+}
+
+.login-card button {
+  padding: 15px 18px;
+  color: #122018;
+  border-radius: 18px;
+  background: #c9ff7a;
+  font-weight: 900;
+}
+
+.login-error {
+  padding: 12px 14px;
+  color: #5a1a0d;
+  border-radius: 14px;
+  background: #ffd8cb;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.demo-users {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 14px;
+  color: #5d745d;
+  border-radius: 16px;
+  background: #f4f7ef;
+  font-size: 0.84rem;
+}
+
+.demo-users strong {
+  color: #17211d;
 }
 
 .shell {
@@ -98,6 +221,36 @@ button {
 .sidebar-summary strong {
   margin-top: 6px;
   font-size: 1.35rem;
+}
+
+.user-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(246, 242, 232, 0.16);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.user-card span {
+  color: rgba(246, 242, 232, 0.64);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.user-card strong {
+  color: #f6f2e8;
+}
+
+.user-card button {
+  width: fit-content;
+  margin-top: 6px;
+  padding: 9px 12px;
+  color: #122018;
+  border-radius: 999px;
+  background: #c9ff7a;
+  font-size: 0.84rem;
+  font-weight: 900;
 }
 
 .installation-list {
@@ -404,6 +557,14 @@ dd {
 }
 
 @media (max-width: 1060px) {
+  .login-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .login-copy {
+    min-height: 420px;
+  }
+
   .shell {
     grid-template-columns: 1fr;
   }
@@ -429,6 +590,23 @@ dd {
 }
 
 @media (max-width: 720px) {
+  .login-shell {
+    padding: 14px;
+  }
+
+  .login-panel {
+    border-radius: 28px;
+  }
+
+  .login-copy,
+  .login-card {
+    padding: 24px;
+  }
+
+  .login-copy {
+    min-height: 380px;
+  }
+
   .content,
   .sidebar {
     padding: 14px;
