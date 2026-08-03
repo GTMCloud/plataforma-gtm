@@ -131,6 +131,11 @@ input {
   font-weight: 900;
 }
 
+.login-card button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .login-error {
   padding: 12px 14px;
   color: #5a1a0d;
@@ -458,6 +463,11 @@ dd {
 
 .panel {
   padding: 24px;
+}
+
+.empty-state {
+  min-height: 240px;
+  align-content: center;
 }
 
 .panel-heading {

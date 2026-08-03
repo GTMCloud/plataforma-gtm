@@ -1,5 +1,7 @@
 dist
 node_modules
+api
+api/node_modules
 .git
 .vscode
 npm-debug.log

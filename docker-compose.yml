@@ -1,4 +1,30 @@
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gtm}
+      POSTGRES_USER: ${POSTGRES_USER:-gtm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - web
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-gtm}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-gtm}
+      GTM_ADMIN_EMAIL: ${GTM_ADMIN_EMAIL:-gtm@gtm.es}
+      GTM_ADMIN_PASSWORD: ${GTM_ADMIN_PASSWORD:?Set GTM_ADMIN_PASSWORD in .env}
+      LOZANO_USER_EMAIL: ${LOZANO_USER_EMAIL:-cliente@productoslozano.es}
+      LOZANO_USER_PASSWORD: ${LOZANO_USER_PASSWORD:?Set LOZANO_USER_PASSWORD in .env}
+    networks:
+      - web
+
   app:
     build: .
     restart: unless-stopped
@@ -10,6 +36,7 @@ services:
     restart: unless-stopped
     depends_on:
       - app
+      - api
     ports:
       - "80:80"
       - "443:443"
@@ -28,3 +55,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  postgres_data:
