@@ -9,6 +9,8 @@
   let loading = false
   let installations = []
   let selectedId = ''
+  let publicMode = false
+  let publicToken = ''
   let plcSamples = []
   let plcStats = null
   let plcLoading = false
@@ -35,6 +37,15 @@
   }
 
   onMount(async () => {
+    const params = new URLSearchParams(window.location.search)
+    const publicSlug = params.get('public')
+    const sharedToken = params.get('token')
+
+    if (publicSlug && sharedToken) {
+      await loadPublicInstallation(publicSlug, sharedToken)
+      return
+    }
+
     const storedToken = localStorage.getItem('gtm_token')
     const storedUser = localStorage.getItem('gtm_user')
 
@@ -81,6 +92,30 @@
     }
   }
 
+  async function loadPublicInstallation(slug, sharedToken) {
+    loading = true
+    loginError = ''
+    publicMode = true
+    publicToken = sharedToken
+
+    try {
+      const data = await apiFetch(`/api/public/installations/${slug}?token=${encodeURIComponent(sharedToken)}`)
+      currentUser = {
+        name: data.installation.client,
+        role: 'public'
+      }
+      installations = [data.installation]
+      selectedId = data.installation.id
+      startAutoRefresh()
+    } catch (error) {
+      publicMode = false
+      publicToken = ''
+      loginError = 'El enlace publico no es valido o ha caducado.'
+    } finally {
+      loading = false
+    }
+  }
+
   function startAutoRefresh() {
     clearInterval(refreshTimer)
     refreshTimer = setInterval(() => {
@@ -94,7 +129,10 @@
     if (!silent) plcLoading = true
 
     try {
-      const data = await apiFetch(`/api/installations/${installationId}/measurements?limit=240`)
+      const path = publicMode
+        ? `/api/public/installations/${installationId}/measurements?limit=240&token=${encodeURIComponent(publicToken)}`
+        : `/api/installations/${installationId}/measurements?limit=240`
+      const data = await apiFetch(path)
       plcSamples = data.samples
       plcStats = data.stats
     } catch (error) {
@@ -134,6 +172,8 @@
     password = ''
     installations = []
     selectedId = ''
+    publicMode = false
+    publicToken = ''
     plcSamples = []
     plcStats = null
     clearInterval(refreshTimer)
@@ -225,9 +265,11 @@
       </div>
 
       <div class="user-card">
-        <span>{currentUser.role === 'gtm' ? 'Usuario GTM' : 'Cliente'}</span>
+        <span>{currentUser.role === 'gtm' ? 'Usuario GTM' : currentUser.role === 'public' ? 'Enlace publico' : 'Cliente'}</span>
         <strong>{currentUser.name}</strong>
-        <button type="button" on:click={handleLogout}>Cerrar sesion</button>
+        {#if !publicMode}
+          <button type="button" on:click={handleLogout}>Cerrar sesion</button>
+        {/if}
       </div>
 
       <nav class="installation-list">

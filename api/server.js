@@ -291,6 +291,62 @@ function countReactorFills(samples) {
   return count
 }
 
+function isValidPublicLozanoRequest(req) {
+  const token = String(req.query.token ?? '')
+  const expectedToken = process.env.LOZANO_PUBLIC_TOKEN ?? ''
+
+  return Boolean(expectedToken) && req.params.slug === 'productos-lozano-central' && token === expectedToken
+}
+
+async function getMeasurementHistory(slug, limit) {
+  const installationResult = await query(
+    `select installations.id, installations.slug
+     from installations
+     where installations.slug = $1`,
+    [slug]
+  )
+
+  const installation = installationResult.rows[0]
+  if (!installation) return null
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const [samplesResult, todayResult] = await Promise.all([
+    query(
+      `select timestamp, values
+       from measurements
+       where installation_id = $1
+       order by timestamp desc
+       limit $2`,
+      [installation.id, limit]
+    ),
+    query(
+      `select timestamp, values
+       from measurements
+       where installation_id = $1 and timestamp >= $2
+       order by timestamp asc`,
+      [installation.id, today.toISOString()]
+    )
+  ])
+
+  const samples = samplesResult.rows
+    .reverse()
+    .map((row) => ({ timestamp: row.timestamp.toISOString(), values: row.values }))
+  const todaySamples = todayResult.rows.map((row) => ({
+    timestamp: row.timestamp.toISOString(),
+    values: row.values
+  }))
+
+  return {
+    samples,
+    stats: {
+      date: today.toISOString().slice(0, 10),
+      reactorFills: countReactorFills(todaySamples)
+    }
+  }
+}
+
 function getSession(req) {
   const header = req.headers.authorization ?? ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : null
@@ -439,6 +495,42 @@ app.get('/api/installations', requireAuth, async (req, res, next) => {
   }
 })
 
+app.get('/api/public/installations/:slug', async (req, res, next) => {
+  try {
+    if (!isValidPublicLozanoRequest(req)) {
+      res.status(404).json({ error: 'Instalacion no encontrada' })
+      return
+    }
+
+    const result = await query(
+      `select installations.*, clients.name as client_name,
+         latest.values as latest_values,
+         latest.timestamp as latest_timestamp
+       from installations
+       join clients on clients.id = installations.client_id
+       left join lateral (
+         select measurements.values, measurements.timestamp
+         from measurements
+         where measurements.installation_id = installations.id
+         order by measurements.timestamp desc
+         limit 1
+       ) latest on true
+       where installations.slug = $1`,
+      [req.params.slug]
+    )
+
+    const installation = result.rows[0]
+    if (!installation) {
+      res.status(404).json({ error: 'Instalacion no encontrada' })
+      return
+    }
+
+    res.json({ installation: serializeInstallation(installation) })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.get('/api/installations/:slug/measurements', requireAuth, async (req, res, next) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit ?? 240), 1), 2000)
@@ -463,42 +555,28 @@ app.get('/api/installations/:slug/measurements', requireAuth, async (req, res, n
       return
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    res.json(await getMeasurementHistory(req.params.slug, limit))
+  } catch (error) {
+    next(error)
+  }
+})
 
-    const [samplesResult, todayResult] = await Promise.all([
-      query(
-        `select timestamp, values
-         from measurements
-         where installation_id = $1
-         order by timestamp desc
-         limit $2`,
-        [installation.id, limit]
-      ),
-      query(
-        `select timestamp, values
-         from measurements
-         where installation_id = $1 and timestamp >= $2
-         order by timestamp asc`,
-        [installation.id, today.toISOString()]
-      )
-    ])
+app.get('/api/public/installations/:slug/measurements', async (req, res, next) => {
+  try {
+    if (!isValidPublicLozanoRequest(req)) {
+      res.status(404).json({ error: 'Instalacion no encontrada' })
+      return
+    }
 
-    const samples = samplesResult.rows
-      .reverse()
-      .map((row) => ({ timestamp: row.timestamp.toISOString(), values: row.values }))
-    const todaySamples = todayResult.rows.map((row) => ({
-      timestamp: row.timestamp.toISOString(),
-      values: row.values
-    }))
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 240), 1), 2000)
+    const history = await getMeasurementHistory(req.params.slug, limit)
 
-    res.json({
-      samples,
-      stats: {
-        date: today.toISOString().slice(0, 10),
-        reactorFills: countReactorFills(todaySamples)
-      }
-    })
+    if (!history) {
+      res.status(404).json({ error: 'Instalacion no encontrada' })
+      return
+    }
+
+    res.json(history)
   } catch (error) {
     next(error)
   }

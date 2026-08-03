@@ -23,6 +23,7 @@ services:
       LOZANO_USER_EMAIL: ${LOZANO_USER_EMAIL:-cliente@productoslozano.es}
       LOZANO_USER_PASSWORD: ${LOZANO_USER_PASSWORD:?Set LOZANO_USER_PASSWORD in .env}
       LOZANO_AGENT_TOKEN: ${LOZANO_AGENT_TOKEN:?Set LOZANO_AGENT_TOKEN in .env}
+      LOZANO_PUBLIC_TOKEN: ${LOZANO_PUBLIC_TOKEN:?Set LOZANO_PUBLIC_TOKEN in .env}
     networks:
       - web
 
