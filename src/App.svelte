@@ -18,16 +18,6 @@
 
   $: selectedInstallation = installations.find((installation) => installation.id === selectedId)
     ?? installations[0]
-  $: totalAlerts = installations.reduce(
-    (total, installation) => total + Number(installation.metrics[2]?.value ?? 0),
-    0
-  )
-  $: averageHealth = installations.length
-    ? Math.round(
-        installations.reduce((total, installation) => total + installation.health, 0) /
-          installations.length
-      )
-    : 0
   $: latestPlcSample = plcSamples[plcSamples.length - 1]
   $: plcTags = latestPlcSample ? Object.keys(latestPlcSample.values) : []
   $: levelTags = plcTags.filter((tag) => tag.startsWith('nivel_') && tag !== 'nivel_ph')
@@ -214,7 +204,7 @@
         <span class="eyebrow">Acceso privado</span>
         <h1>Plataforma de instalaciones GTM</h1>
         <p>
-          Accede al panel para consultar obras, sensores, incidencias y documentos segun tu perfil.
+          Accede al panel para consultar las lecturas reales enviadas por las Raspberry de cada instalacion.
         </p>
       </div>
 
@@ -240,7 +230,7 @@
 
         <button type="submit" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</button>
 
-        <div class="demo-users">
+        <div class="access-hints">
           <strong>Accesos iniciales</strong>
           <span>GTM: gtm@gtm.es / gtm2026</span>
           <span>Productos Lozano: cliente@productoslozano.es / lozano2026</span>
@@ -261,7 +251,7 @@
 
       <div class="sidebar-summary">
         <span>{installations.length} obras visibles</span>
-        <strong>{averageHealth}% salud media</strong>
+        <strong>Datos reales PLC</strong>
       </div>
 
       <div class="user-card">
@@ -298,16 +288,15 @@
             <span class="eyebrow">Vista de datos por instalacion</span>
             <h1>{selectedInstallation.name}</h1>
             <p>
-              Seguimiento centralizado de estado, consumos, sensores, incidencias y documentacion
-              tecnica para cliente y equipo GTM.
+              Lecturas reales recibidas desde la Raspberry de la instalacion y almacenadas en el VPS.
             </p>
           </div>
           <div class="status-card">
-            <span class="status {selectedInstallation.status === 'Operativa' ? 'ok' : 'warn'}">
+            <span class="status {selectedInstallation.status === 'Recibiendo datos' ? 'ok' : 'warn'}">
               {selectedInstallation.status}
             </span>
-            <strong>{selectedInstallation.health}%</strong>
-            <small>Salud de instalacion</small>
+            <strong>{plcSamples.length}</strong>
+            <small>Muestras cargadas</small>
           </div>
         </header>
 
@@ -426,94 +415,6 @@
             <strong>{selectedInstallation.lastUpdate}</strong>
           </article>
         </section>
-
-        <section class="metrics-grid" aria-label="Indicadores principales">
-          {#each selectedInstallation.metrics as metric}
-            <article class="metric-card">
-              <span>{metric.label}</span>
-              <strong>{metric.value}</strong>
-              <small>{metric.trend}</small>
-            </article>
-          {/each}
-        </section>
-
-        <div class="detail-grid">
-          <section class="panel technical-card">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Ficha tecnica</span>
-                <h2>Datos de obra</h2>
-              </div>
-              <span class="phase">{selectedInstallation.phase}</span>
-            </div>
-
-            <dl>
-              <div>
-                <dt>Tipo de instalacion</dt>
-                <dd>{selectedInstallation.type}</dd>
-              </div>
-              <div>
-                <dt>Fecha de inicio</dt>
-                <dd>{selectedInstallation.startDate}</dd>
-              </div>
-              <div>
-                <dt>Alertas totales plataforma</dt>
-                <dd>{totalAlerts}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section class="panel">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Telemetria</span>
-                <h2>Sensores clave</h2>
-              </div>
-            </div>
-
-            <div class="sensor-list">
-              {#each selectedInstallation.sensors as sensor}
-                <article>
-                  <div>
-                    <strong>{sensor.label}</strong>
-                    <span>{sensor.value}</span>
-                  </div>
-                  <small class:alert={sensor.state === 'Alerta'}>{sensor.state}</small>
-                </article>
-              {/each}
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Operaciones</span>
-                <h2>Incidencias y acciones</h2>
-              </div>
-            </div>
-
-            <ul class="incident-list">
-              {#each selectedInstallation.incidents as incident}
-                <li>{incident}</li>
-              {/each}
-            </ul>
-          </section>
-
-          <section class="panel">
-            <div class="panel-heading">
-              <div>
-                <span class="eyebrow">Repositorio</span>
-                <h2>Documentos</h2>
-              </div>
-            </div>
-
-            <div class="document-list">
-              {#each selectedInstallation.documents as document}
-                <a href="/" on:click|preventDefault>{document}</a>
-              {/each}
-            </div>
-          </section>
-        </div>
 
       {:else}
         <section class="panel empty-state">

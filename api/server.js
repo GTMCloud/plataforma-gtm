@@ -163,29 +163,17 @@ async function upsertInstallation(clientId) {
       'productos-lozano-central',
       'Productos Lozano Central',
       'Valencia',
-      'Operativa',
-      94,
-      'Hoy, 11:05',
-      'Seguimiento',
+      'Sin datos',
+      0,
+      'Sin datos recibidos',
+      'Datos reales PLC',
       'Equipo GTM',
       'Monitorizacion energetica y agente local',
       '03 Ago 2026',
-      JSON.stringify([
-        { label: 'Consumo actual', value: '31.7 kW', trend: '-2% vs semana pasada' },
-        { label: 'Disponibilidad', value: '99.1%', trend: 'Dentro de SLA' },
-        { label: 'Alertas abiertas', value: '0', trend: 'Sin incidencias' },
-        { label: 'Equipos monitorizados', value: '14', trend: '100% conectados' }
-      ]),
-      JSON.stringify([
-        { label: 'Raspberry agente', value: 'Online', state: 'Normal' },
-        { label: 'Contador general', value: '31.7 kW', state: 'Normal' },
-        { label: 'Cuadro principal', value: '406 V', state: 'Normal' }
-      ]),
-      JSON.stringify([
-        'Cliente creado en base de datos PostgreSQL.',
-        'Pendiente conectar la Raspberry de Productos Lozano para datos reales.'
-      ]),
-      JSON.stringify(['Ficha cliente Productos Lozano.pdf', 'Esquema conexion agente.pdf'])
+      JSON.stringify([]),
+      JSON.stringify([]),
+      JSON.stringify([]),
+      JSON.stringify([])
     ]
   )
 
@@ -237,6 +225,7 @@ async function seed() {
 }
 
 function serializeInstallation(row) {
+  const hasLiveData = Boolean(row.latest_timestamp)
   const liveSensors = row.latest_values
     ? Object.entries(row.latest_values).map(([label, value]) => ({
         label,
@@ -250,8 +239,8 @@ function serializeInstallation(row) {
     name: row.name,
     client: row.client_name,
     location: row.location,
-    status: row.status,
-    health: row.health,
+    status: hasLiveData ? 'Recibiendo datos' : 'Sin datos',
+    health: null,
     lastUpdate: row.latest_timestamp ? new Date(row.latest_timestamp).toLocaleString('es-ES') : row.last_update,
     phase: row.phase,
     manager: row.manager,

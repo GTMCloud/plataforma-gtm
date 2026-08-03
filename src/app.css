@@ -145,7 +145,7 @@ input {
   font-weight: 800;
 }
 
-.demo-users {
+.access-hints {
   display: grid;
   gap: 5px;
   margin-top: 6px;
@@ -156,7 +156,7 @@ input {
   font-size: 0.84rem;
 }
 
-.demo-users strong {
+.access-hints strong {
   color: #17211d;
 }
 
