@@ -1,5 +1,6 @@
 <script>
-  import { onDestroy, onMount } from 'svelte'
+  import { onDestroy, onMount, tick } from 'svelte'
+  import Chart from 'chart.js/auto'
 
   let currentUser = null
   let token = ''
@@ -15,6 +16,15 @@
   let plcStats = null
   let plcLoading = false
   let refreshTimer
+  let levelChartCanvas
+  let phChartCanvas
+  let levelChart
+  let phChart
+  let visibleSampleCount = 120
+  let windowEndIndex = null
+  let isPaused = false
+  let dragLastX = null
+  let dragAccumulator = 0
 
   $: selectedInstallation = installations.find((installation) => installation.id === selectedId)
     ?? installations[0]
@@ -22,8 +32,13 @@
   $: plcTags = latestPlcSample ? Object.keys(latestPlcSample.values) : []
   $: levelTags = plcTags.filter((tag) => tag.startsWith('nivel_') && tag !== 'nivel_ph')
   $: booleanTags = plcTags.filter((tag) => typeof latestPlcSample?.values[tag] === 'boolean')
+  $: effectiveWindowEnd = windowEndIndex ?? plcSamples.length
+  $: visibleSamples = plcSamples.slice(Math.max(0, effectiveWindowEnd - visibleSampleCount), effectiveWindowEnd)
   $: if (currentUser && selectedId) {
     loadPlcHistory(selectedId)
+  }
+  $: if (visibleSamples.length > 0) {
+    renderCharts()
   }
 
   onMount(async () => {
@@ -48,6 +63,8 @@
 
   onDestroy(() => {
     clearInterval(refreshTimer)
+    levelChart?.destroy()
+    phChart?.destroy()
   })
 
   async function apiFetch(path, options = {}) {
@@ -109,7 +126,7 @@
   function startAutoRefresh() {
     clearInterval(refreshTimer)
     refreshTimer = setInterval(() => {
-      if (currentUser && selectedId) loadPlcHistory(selectedId, true)
+      if (currentUser && selectedId && !isPaused) loadPlcHistory(selectedId, true)
     }, 10000)
   }
 
@@ -120,8 +137,8 @@
 
     try {
       const path = publicMode
-        ? `/api/public/installations/${installationId}/measurements?limit=240&token=${encodeURIComponent(publicToken)}`
-        : `/api/installations/${installationId}/measurements?limit=240`
+        ? `/api/public/installations/${installationId}/measurements?limit=100000&token=${encodeURIComponent(publicToken)}`
+        : `/api/installations/${installationId}/measurements?limit=100000`
       const data = await apiFetch(path)
       plcSamples = data.samples
       plcStats = data.stats
@@ -166,6 +183,8 @@
     publicToken = ''
     plcSamples = []
     plcStats = null
+    isPaused = false
+    windowEndIndex = null
     clearInterval(refreshTimer)
     localStorage.removeItem('gtm_token')
     localStorage.removeItem('gtm_user')
@@ -181,18 +200,181 @@
     return String(value)
   }
 
-  function buildChartPath(tag, min, max) {
-    const numericSamples = plcSamples.filter((sample) => Number.isFinite(sample.values[tag]))
-    if (numericSamples.length === 0) return ''
+  function setTimeWindow(hours) {
+    const first = plcSamples[0]
+    const second = plcSamples[1]
+    const intervalMs = first && second
+      ? Math.max(1000, new Date(second.timestamp) - new Date(first.timestamp))
+      : 1000
 
-    return numericSamples
-      .map((sample, index) => {
-        const x = numericSamples.length === 1 ? 100 : (index / (numericSamples.length - 1)) * 100
-        const clamped = Math.max(min, Math.min(max, sample.values[tag]))
-        const y = 100 - ((clamped - min) / (max - min)) * 100
-        return `${x.toFixed(2)},${y.toFixed(2)}`
+    visibleSampleCount = Math.max(20, Math.round((hours * 60 * 60 * 1000) / intervalMs))
+    windowEndIndex = null
+    isPaused = false
+  }
+
+  function showMoreTime() {
+    visibleSampleCount = Math.min(100000, Math.round(visibleSampleCount * 1.5))
+  }
+
+  function showLessTime() {
+    visibleSampleCount = Math.max(20, Math.round(visibleSampleCount / 1.5))
+  }
+
+  function navigateBack() {
+    shiftWindow(-Math.max(1, Math.round(visibleSampleCount * 0.25)))
+  }
+
+  function shiftWindow(deltaSamples) {
+    const end = windowEndIndex ?? plcSamples.length
+    const next = Math.max(visibleSampleCount, Math.min(plcSamples.length, end + deltaSamples))
+
+    if (next >= plcSamples.length) {
+      windowEndIndex = null
+      isPaused = false
+      return
+    }
+
+    windowEndIndex = next
+    isPaused = true
+  }
+
+  function navigateForward() {
+    if (windowEndIndex === null) return
+    shiftWindow(Math.max(1, Math.round(visibleSampleCount * 0.25)))
+  }
+
+  function goLive() {
+    windowEndIndex = null
+    isPaused = false
+  }
+
+  function togglePause() {
+    isPaused = !isPaused
+    if (isPaused) windowEndIndex = plcSamples.length
+    else windowEndIndex = null
+  }
+
+  function handleChartWheel(event) {
+    if (event.ctrlKey) {
+      if (event.deltaY < 0) showLessTime()
+      else showMoreTime()
+      return
+    }
+
+    if (event.deltaY > 0 || event.deltaX > 0) shiftWindow(Math.max(1, Math.round(visibleSampleCount * 0.08)))
+    else shiftWindow(-Math.max(1, Math.round(visibleSampleCount * 0.08)))
+  }
+
+  function startChartDrag(event) {
+    dragLastX = event.clientX
+    dragAccumulator = 0
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function moveChartDrag(event) {
+    if (dragLastX === null) return
+
+    const movement = event.clientX - dragLastX
+    const pixelsPerSample = Math.max(1, event.currentTarget.clientWidth / visibleSampleCount)
+    dragLastX = event.clientX
+    dragAccumulator += movement
+
+    const step = Math.trunc(Math.abs(dragAccumulator) / pixelsPerSample)
+    if (step === 0) return
+
+    dragAccumulator = dragAccumulator > 0
+      ? dragAccumulator - step * pixelsPerSample
+      : dragAccumulator + step * pixelsPerSample
+
+    shiftWindow(movement > 0 ? -step : step)
+  }
+
+  function stopChartDrag() {
+    dragLastX = null
+    dragAccumulator = 0
+  }
+
+  async function renderCharts() {
+    await tick()
+
+    if (!levelChartCanvas || visibleSamples.length === 0) return
+
+    const labels = visibleSamples.map((sample) => formatSampleTime(sample.timestamp))
+    const colors = ['#38bdf8', '#22c55e', '#f97316', '#a78bfa', '#f43f5e', '#eab308']
+    const pumpDatasets = booleanTags.map((tag, index) => ({
+      label: tag,
+      data: visibleSamples.map((sample) => sample.values[tag] ? 100 - index * 8 : null),
+      borderColor: getPumpColor(tag),
+      backgroundColor: getPumpColor(tag),
+      borderWidth: 5,
+      pointRadius: 0,
+      spanGaps: false
+    }))
+    const levelDatasets = levelTags.map((tag, index) => ({
+      label: tag,
+      data: visibleSamples.map((sample) => sample.values[tag]),
+      borderColor: colors[index % colors.length],
+      backgroundColor: colors[index % colors.length],
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.28
+    }))
+
+    levelChart = upsertLineChart(levelChart, levelChartCanvas, labels, levelDatasets.concat(pumpDatasets), 0, 100)
+
+    if (phChartCanvas && plcTags.includes('nivel_ph')) {
+      phChart = upsertLineChart(phChart, phChartCanvas, labels, [{
+        label: 'nivel_ph',
+        data: visibleSamples.map((sample) => sample.values.nivel_ph),
+        borderColor: '#f472b6',
+        backgroundColor: '#f472b6',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.28
+      }], 0, 14)
+    }
+  }
+
+  function upsertLineChart(chart, canvas, labels, datasets, yMin, yMax) {
+    if (!chart) {
+      return new Chart(canvas, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              ticks: { autoSkip: true, color: '#94a3b8', maxRotation: 0, maxTicksLimit: 8 },
+              grid: { color: 'rgba(148, 163, 184, 0.12)' }
+            },
+            y: {
+              min: yMin,
+              max: yMax,
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(148, 163, 184, 0.12)' }
+            }
+          },
+          plugins: {
+            legend: { labels: { color: '#dbeafe', usePointStyle: true } }
+          }
+        }
       })
-      .join(' ')
+    }
+
+    chart.data.labels = labels
+    chart.data.datasets = datasets
+    chart.update('none')
+    return chart
+  }
+
+  function getPumpColor(tag) {
+    if (tag.includes('lechada')) return '#22c55e'
+    if (tag.includes('llenado')) return '#38bdf8'
+    if (tag.includes('vaciado')) return '#f97316'
+    return '#eab308'
   }
 </script>
 
@@ -314,22 +496,31 @@
               <article class="plc-chart-card levels-card">
                 <div class="plc-card-heading">
                   <strong>Niveles</strong>
-                  <span>{formatSampleTime(plcSamples[0].timestamp)} - {formatSampleTime(latestPlcSample.timestamp)}</span>
+                  <div class="chart-tools">
+                    <button type="button" title="Ver mas tiempo" on:click={showMoreTime}>-</button>
+                    <button type="button" title="Ver menos tiempo" on:click={showLessTime}>+</button>
+                    <button type="button" title="Atras" on:click={navigateBack}>‹</button>
+                    <button type="button" title="Adelante" on:click={navigateForward}>›</button>
+                    <button type="button" title="Tiempo real" on:click={goLive}>●</button>
+                    <button type="button" title="Pausar" on:click={togglePause}>{isPaused ? '▶' : 'Ⅱ'}</button>
+                    <button class="time-window-button" type="button" on:click={() => setTimeWindow(4)}>4h</button>
+                    <button class="time-window-button" type="button" on:click={() => setTimeWindow(8)}>8h</button>
+                    <button class="time-window-button" type="button" on:click={() => setTimeWindow(12)}>12h</button>
+                    <button class="time-window-button" type="button" on:click={() => setTimeWindow(24)}>24h</button>
+                    <span>{visibleSamples.length} visibles</span>
+                  </div>
                 </div>
 
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de niveles PLC">
-                  <line x1="0" y1="25" x2="100" y2="25" />
-                  <line x1="0" y1="50" x2="100" y2="50" />
-                  <line x1="0" y1="75" x2="100" y2="75" />
-                  {#each levelTags as tag, index}
-                    <polyline class="series series-{index}" points={buildChartPath(tag, 0, 100)} />
-                  {/each}
-                </svg>
-
-                <div class="chart-legend">
-                  {#each levelTags as tag, index}
-                    <span class="legend-item legend-{index}">{tag}</span>
-                  {/each}
+                <p class="timeline-help">Rueda: desplazar tiempo · Ctrl + rueda: zoom · Arrastrar: mover linea de tiempo</p>
+                <div class="chart-frame">
+                  <canvas
+                    bind:this={levelChartCanvas}
+                    on:wheel|preventDefault={handleChartWheel}
+                    on:pointerdown={startChartDrag}
+                    on:pointermove={moveChartDrag}
+                    on:pointerup={stopChartDrag}
+                    on:pointercancel={stopChartDrag}
+                  ></canvas>
                 </div>
               </article>
 
@@ -359,15 +550,19 @@
                 <article class="plc-chart-card ph-card">
                   <div class="plc-card-heading">
                     <strong>pH</strong>
-                    <span>{plcSamples.length} muestras</span>
+                    <span>{visibleSamples.length} visibles</span>
                   </div>
 
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de pH PLC">
-                    <line x1="0" y1="25" x2="100" y2="25" />
-                    <line x1="0" y1="50" x2="100" y2="50" />
-                    <line x1="0" y1="75" x2="100" y2="75" />
-                    <polyline class="series ph-series" points={buildChartPath('nivel_ph', 0, 14)} />
-                  </svg>
+                  <div class="chart-frame ph-frame">
+                    <canvas
+                      bind:this={phChartCanvas}
+                      on:wheel|preventDefault={handleChartWheel}
+                      on:pointerdown={startChartDrag}
+                      on:pointermove={moveChartDrag}
+                      on:pointerup={stopChartDrag}
+                      on:pointercancel={stopChartDrag}
+                    ></canvas>
+                  </div>
                 </article>
               {/if}
 

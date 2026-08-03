@@ -522,7 +522,7 @@ app.get('/api/public/installations/:slug', async (req, res, next) => {
 
 app.get('/api/installations/:slug/measurements', requireAuth, async (req, res, next) => {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit ?? 240), 1), 2000)
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 240), 1), 100000)
     const params = [req.params.slug]
     let accessWhere = ''
 
@@ -557,7 +557,7 @@ app.get('/api/public/installations/:slug/measurements', async (req, res, next) =
       return
     }
 
-    const limit = Math.min(Math.max(Number(req.query.limit ?? 240), 1), 2000)
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 240), 1), 100000)
     const history = await getMeasurementHistory(req.params.slug, limit)
 
     if (!history) {

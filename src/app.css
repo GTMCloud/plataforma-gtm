@@ -607,78 +607,53 @@ dd {
   color: #e5eefb;
 }
 
+.plc-card-heading .chart-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-tools button {
+  display: inline-grid;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0 10px;
+  color: #dbeafe;
+  border: 1px solid rgba(125, 211, 252, 0.34);
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.12);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.chart-tools button:hover {
+  background: rgba(14, 165, 233, 0.24);
+}
+
 .plc-card-heading span {
   color: #7dd3fc;
   font-size: 0.82rem;
 }
 
-.plc-chart-card svg {
+.chart-frame {
+  position: relative;
   width: 100%;
-  height: 260px;
-  overflow: visible;
+  height: 520px;
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.64));
 }
 
-.plc-chart-card line {
-  stroke: rgba(148, 163, 184, 0.18);
-  stroke-width: 0.4;
+.ph-frame {
+  height: 360px;
 }
 
-.series {
-  fill: none;
-  stroke-width: 1.7;
-  vector-effect: non-scaling-stroke;
-}
-
-.series-0,
-.legend-0::before {
-  stroke: #38bdf8;
-  background: #38bdf8;
-}
-
-.series-1,
-.legend-1::before {
-  stroke: #22c55e;
-  background: #22c55e;
-}
-
-.series-2,
-.legend-2::before {
-  stroke: #f97316;
-  background: #f97316;
-}
-
-.series-3,
-.legend-3::before {
-  stroke: #a78bfa;
-  background: #a78bfa;
-}
-
-.ph-series {
-  stroke: #f472b6;
-}
-
-.chart-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #cbd5e1;
+.timeline-help {
+  margin: -6px 0 14px;
+  color: #64748b;
   font-size: 0.82rem;
-}
-
-.legend-item::before {
-  content: '';
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
 }
 
 .plc-values,
