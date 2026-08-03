@@ -269,6 +269,103 @@
           </div>
         </header>
 
+        <section class="plc-dashboard panel">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">Historico PLC</span>
+              <h2>Vista tipo Raspberry</h2>
+            </div>
+            <span class="phase">{plcLoading ? 'Actualizando' : `${plcSamples.length} muestras`}</span>
+          </div>
+
+          {#if plcSamples.length > 0}
+            <div class="plc-grid">
+              <article class="plc-chart-card levels-card">
+                <div class="plc-card-heading">
+                  <strong>Niveles</strong>
+                  <span>{formatSampleTime(plcSamples[0].timestamp)} - {formatSampleTime(latestPlcSample.timestamp)}</span>
+                </div>
+
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de niveles PLC">
+                  <line x1="0" y1="25" x2="100" y2="25" />
+                  <line x1="0" y1="50" x2="100" y2="50" />
+                  <line x1="0" y1="75" x2="100" y2="75" />
+                  {#each levelTags as tag, index}
+                    <polyline class="series series-{index}" points={buildChartPath(tag, 0, 100)} />
+                  {/each}
+                </svg>
+
+                <div class="chart-legend">
+                  {#each levelTags as tag, index}
+                    <span class="legend-item legend-{index}">{tag}</span>
+                  {/each}
+                </div>
+              </article>
+
+              <article class="plc-live-card">
+                <div class="plc-card-heading">
+                  <strong>Ultima lectura</strong>
+                  <span>{new Date(latestPlcSample.timestamp).toLocaleString('es-ES')}</span>
+                </div>
+
+                <div class="counter-card compact-counter">
+                  <span>Reactores hoy</span>
+                  <strong>{plcStats?.reactorFills ?? 0}</strong>
+                  <p>{plcStats?.date ?? 'Sin fecha'}</p>
+                </div>
+
+                <div class="plc-values">
+                  {#each plcTags as tag}
+                    <div>
+                      <span>{tag}</span>
+                      <strong>{formatTagValue(latestPlcSample.values[tag])}</strong>
+                    </div>
+                  {/each}
+                </div>
+              </article>
+
+              {#if plcTags.includes('nivel_ph')}
+                <article class="plc-chart-card ph-card">
+                  <div class="plc-card-heading">
+                    <strong>pH</strong>
+                    <span>{plcSamples.length} muestras</span>
+                  </div>
+
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de pH PLC">
+                    <line x1="0" y1="25" x2="100" y2="25" />
+                    <line x1="0" y1="50" x2="100" y2="50" />
+                    <line x1="0" y1="75" x2="100" y2="75" />
+                    <polyline class="series ph-series" points={buildChartPath('nivel_ph', 0, 14)} />
+                  </svg>
+                </article>
+              {/if}
+
+              {#if booleanTags.length > 0}
+                <article class="plc-live-card pump-card">
+                  <div class="plc-card-heading">
+                    <strong>Bombas</strong>
+                    <span>Estados digitales</span>
+                  </div>
+
+                  <div class="pump-list">
+                    {#each booleanTags as tag}
+                      <div class:active={latestPlcSample.values[tag]}>
+                        <span>{tag}</span>
+                        <strong>{formatTagValue(latestPlcSample.values[tag])}</strong>
+                      </div>
+                    {/each}
+                  </div>
+                </article>
+              {/if}
+            </div>
+          {:else}
+            <div class="empty-state plc-empty">
+              <span class="eyebrow">Sin historico PLC</span>
+              <h2>Aun no hay muestras recibidas de la Raspberry para esta instalacion</h2>
+            </div>
+          {/if}
+        </section>
+
         <section class="overview-grid" aria-label="Resumen global">
           <article>
             <span>Cliente</span>
@@ -376,102 +473,6 @@
           </section>
         </div>
 
-        <section class="plc-dashboard panel">
-          <div class="panel-heading">
-            <div>
-              <span class="eyebrow">Historico PLC</span>
-              <h2>Vista tipo Raspberry</h2>
-            </div>
-            <span class="phase">{plcLoading ? 'Actualizando' : `${plcSamples.length} muestras`}</span>
-          </div>
-
-          {#if plcSamples.length > 0}
-            <div class="plc-grid">
-              <article class="plc-chart-card levels-card">
-                <div class="plc-card-heading">
-                  <strong>Niveles</strong>
-                  <span>{formatSampleTime(plcSamples[0].timestamp)} - {formatSampleTime(latestPlcSample.timestamp)}</span>
-                </div>
-
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de niveles PLC">
-                  <line x1="0" y1="25" x2="100" y2="25" />
-                  <line x1="0" y1="50" x2="100" y2="50" />
-                  <line x1="0" y1="75" x2="100" y2="75" />
-                  {#each levelTags as tag, index}
-                    <polyline class="series series-{index}" points={buildChartPath(tag, 0, 100)} />
-                  {/each}
-                </svg>
-
-                <div class="chart-legend">
-                  {#each levelTags as tag, index}
-                    <span class="legend-item legend-{index}">{tag}</span>
-                  {/each}
-                </div>
-              </article>
-
-              <article class="plc-live-card">
-                <div class="plc-card-heading">
-                  <strong>Ultima lectura</strong>
-                  <span>{new Date(latestPlcSample.timestamp).toLocaleString('es-ES')}</span>
-                </div>
-
-                <div class="counter-card compact-counter">
-                  <span>Reactores hoy</span>
-                  <strong>{plcStats?.reactorFills ?? 0}</strong>
-                  <p>{plcStats?.date ?? 'Sin fecha'}</p>
-                </div>
-
-                <div class="plc-values">
-                  {#each plcTags as tag}
-                    <div>
-                      <span>{tag}</span>
-                      <strong>{formatTagValue(latestPlcSample.values[tag])}</strong>
-                    </div>
-                  {/each}
-                </div>
-              </article>
-
-              {#if plcTags.includes('nivel_ph')}
-                <article class="plc-chart-card ph-card">
-                  <div class="plc-card-heading">
-                    <strong>pH</strong>
-                    <span>{plcSamples.length} muestras</span>
-                  </div>
-
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Grafica de pH PLC">
-                    <line x1="0" y1="25" x2="100" y2="25" />
-                    <line x1="0" y1="50" x2="100" y2="50" />
-                    <line x1="0" y1="75" x2="100" y2="75" />
-                    <polyline class="series ph-series" points={buildChartPath('nivel_ph', 0, 14)} />
-                  </svg>
-                </article>
-              {/if}
-
-              {#if booleanTags.length > 0}
-                <article class="plc-live-card pump-card">
-                  <div class="plc-card-heading">
-                    <strong>Bombas</strong>
-                    <span>Estados digitales</span>
-                  </div>
-
-                  <div class="pump-list">
-                    {#each booleanTags as tag}
-                      <div class:active={latestPlcSample.values[tag]}>
-                        <span>{tag}</span>
-                        <strong>{formatTagValue(latestPlcSample.values[tag])}</strong>
-                      </div>
-                    {/each}
-                  </div>
-                </article>
-              {/if}
-            </div>
-          {:else}
-            <div class="empty-state plc-empty">
-              <span class="eyebrow">Sin historico PLC</span>
-              <h2>Aun no hay muestras recibidas de la Raspberry para esta instalacion</h2>
-            </div>
-          {/if}
-        </section>
       {:else}
         <section class="panel empty-state">
           <span class="eyebrow">Sin instalaciones</span>
